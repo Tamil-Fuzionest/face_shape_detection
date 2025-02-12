@@ -28,7 +28,7 @@ import {
     FACE_LANDMARK_DETECTION_MODE,
     FACE_LANDMARK_DETECTION_STR,
     ModelLoadResult,
-} from "./../utils/definitions";
+} from "../utils/definitions";
 
 type Connection = {
     start: number;
@@ -400,6 +400,26 @@ const FaceLandmarkDetection = (() => {
         }
     };
 
+    // ★ NEW ★ Detection function for image input.
+  // For still images, use the synchronous detect() method.
+  const detectFaceInImage = (
+    image: HTMLImageElement
+  ): FaceLandmarkerResult | null => {
+    if (faceLandmark) {
+      try {
+        const detection: FaceLandmarkerResult = faceLandmark.detect(image);
+        return detection;
+      } catch (error) {
+        if (error instanceof Error) {
+          console.log(error.message);
+        } else {
+          console.log(error);
+        }
+      }
+    }
+    return null;
+  };
+
     const drawLandmarkPoints = (
         mirrored: boolean,
         landmarks: NormalizedLandmark[][],
@@ -507,6 +527,126 @@ const FaceLandmarkDetection = (() => {
         return null;
     };
 
+    // Helper: Euclidean distance between two normalized points.
+    const calculateDistance = (p1: NormalizedLandmark, p2: NormalizedLandmark): number => {
+        return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+    };
+
+    const classifyFaceShape = (landmarks: NormalizedLandmark[]): string => {
+        if (!landmarks || landmarks.length < 468) return 'Unknown';
+    
+        // Key landmarks based on MediaPipe FaceMesh
+        const FOREHEAD_CENTER = landmarks[10];
+        const CHIN = landmarks[152];
+        const JAW_LEFT = landmarks[93];
+        const JAW_RIGHT = landmarks[323];
+        const FOREHEAD_LEFT = landmarks[127];
+        const FOREHEAD_RIGHT = landmarks[356];
+        const CHEEK_LEFT = landmarks[234];
+        const CHEEK_RIGHT = landmarks[454];
+    
+        // Calculate dimensions
+        const faceHeight = calculateDistance(FOREHEAD_CENTER, CHIN);
+        const jawWidth = calculateDistance(JAW_LEFT, JAW_RIGHT);
+        const foreheadWidth = calculateDistance(FOREHEAD_LEFT, FOREHEAD_RIGHT);
+        const cheekboneWidth = calculateDistance(CHEEK_LEFT, CHEEK_RIGHT);
+        const chinLength = calculateDistance(CHIN, landmarks[200]); // Lower chin to bottom edge
+    
+        // Call determineFaceShape with calculated values
+        return determineFaceShape(
+            foreheadWidth + 0.05, // Slight normalization adjustment
+            jawWidth,
+            cheekboneWidth,
+            foreheadWidth,
+            faceHeight,
+            chinLength
+        );
+    };
+
+    const determineFaceShape = (
+        faceWidth: number,
+        jawWidth: number,
+        cheekboneWidth: number,
+        foreheadWidth: number,
+        faceHeight: number,
+        chinLength: number
+    ): string => {
+        const faceAspectRatio = faceHeight / faceWidth;
+        const jawToCheekboneRatio = jawWidth / cheekboneWidth;
+        const foreheadToCheekboneRatio = foreheadWidth / cheekboneWidth;
+        const chinToFaceRatio = chinLength / faceHeight;
+    
+        // console.log("Face Shape Ratios:", {
+        //     faceAspectRatio,
+        //     jawToCheekboneRatio,
+        //     foreheadToCheekboneRatio,
+        //     chinToFaceRatio,
+        // });
+    
+        if (
+            faceAspectRatio >= 1.1 &&
+            faceAspectRatio <= 1.5 &&
+            jawToCheekboneRatio >= 0.85 &&
+            jawToCheekboneRatio <= 0.92 &&
+            foreheadToCheekboneRatio >= 0.75 &&
+            foreheadToCheekboneRatio <= 0.85
+        ) {
+            return "Oval";
+        }
+    
+        if (
+            faceAspectRatio < 1.2 &&
+            jawToCheekboneRatio >= 0.80 &&
+            jawToCheekboneRatio <= 0.92 &&
+            foreheadToCheekboneRatio >= 0.75 &&
+            foreheadToCheekboneRatio <= 0.85 &&
+            chinToFaceRatio < 0.65
+        ) {
+            return "Round";
+        }
+    
+        if (
+            faceAspectRatio <= 1.2 &&
+            Math.abs(jawWidth - foreheadWidth) / foreheadWidth < 0.07
+        ) {
+            return "Square";
+        }
+    
+        if (
+            foreheadWidth > cheekboneWidth &&
+            cheekboneWidth > jawWidth &&
+            chinToFaceRatio < 0.25
+        ) {
+            return "Heart";
+        }
+    
+        if (
+            cheekboneWidth > foreheadWidth &&
+            foreheadWidth > jawWidth &&
+            chinToFaceRatio >= 0.7
+        ) {
+            return "Diamond";
+        }
+    
+        if (
+            faceAspectRatio > 1.5 &&
+            Math.abs(jawWidth - cheekboneWidth) / cheekboneWidth < 0.07
+        ) {
+            return "Rectangle";
+        }
+    
+        if (
+            jawWidth > cheekboneWidth &&
+            cheekboneWidth > foreheadWidth &&
+            chinToFaceRatio >= 0.7
+        ) {
+            return "Triangle";
+        }
+    
+        return faceAspectRatio < 1.3 ? "Round" : "Oval";
+    };    
+    
+
     return {
         CONNECTION_FACE_LANDMARKS_TESSELATION,
         CONNECTION_FACE_LANDMARKS_CONTOURS,
@@ -545,6 +685,7 @@ const FaceLandmarkDetection = (() => {
         isModelUpdating,
         detectFace,
         draw,
+        classifyFaceShape
     };
 })();
 
