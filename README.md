@@ -10,7 +10,7 @@ MediaPipe Vision Models: Object Detection, Face Detection, Gesture Recognition, 
 
 
 ## Demo
-[Demo Link](https://yiyd1004.github.io/nextjs_face_object_detection/)
+[Demo Link](https://Tamil-Fuzionest.github.io/face_shape_detection/)
 
 :information_source:&nbsp;&nbsp;This app is not tested on mobile devices. Best to run on desktop browsers.
 
